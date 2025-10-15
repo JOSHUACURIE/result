@@ -1,0 +1,3 @@
+2025-10-06 12:35:26 [[31MERROR[39M]: Error: Transaction cannot be rolled back because it has been finished with state: commit
+2025-10-10 13:06:27 [[31MERROR[39M]: Authentication error: read ECONNRESET
+2025-10-10 13:06:27 [[31MERROR[39M]: Authentication error: read ECONNRESET
