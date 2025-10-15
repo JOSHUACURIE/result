@@ -1,23 +1,21 @@
-// config/db.js
 const { Sequelize } = require("sequelize");
 require("dotenv").config();
 
 const env = process.env.NODE_ENV || "development";
 
-// Common base configuration
 const baseConfig = {
   dialect: "postgres",
   dialectOptions: {
     ssl: {
       require: true,
-      rejectUnauthorized: false, // Needed for Supabase + Render
+      rejectUnauthorized: false,
     },
   },
-  logging: env === "development" ? console.log : false,
+  logging: false,
   pool: {
-    max: 10,
+    max: 5,
     min: 0,
-    acquire: 60000,
+    acquire: 30000,
     idle: 10000,
   },
   retry: {
@@ -25,53 +23,49 @@ const baseConfig = {
   },
 };
 
-// Environment-specific settings
 const config = {
   development: {
     ...baseConfig,
-    database: process.env.DEV_DB_NAME || "postgres",
-    username: process.env.DEV_DB_USER || "postgres",
-    password: process.env.DEV_DB_PASSWORD || "",
-    host: process.env.DEV_DB_HOST || "localhost",
-    port: process.env.DEV_DB_PORT || 5432,
+    database: process.env.DEV_DB_NAME,
+    username: process.env.DEV_DB_USER,
+    password: process.env.DEV_DB_PASSWORD,
+    host: process.env.DEV_DB_HOST,
+    port: process.env.DEV_DB_PORT,
   },
   production: {
     ...baseConfig,
-    database: process.env.PROD_DB_NAME || "postgres",
-    username: process.env.PROD_DB_USER || "postgres",
-    password: process.env.PROD_DB_PASSWORD || "",
-    host: process.env.PROD_DB_HOST || "localhost",
-    port: process.env.PROD_DB_PORT || 5432,
+    database: process.env.PROD_DB_NAME,
+    username: process.env.PROD_DB_USER,
+    password: process.env.PROD_DB_PASSWORD,
+    host: process.env.PROD_DB_HOST,
+    port: process.env.PROD_DB_PORT,
   },
 };
 
-// Create Sequelize instance
+const currentConfig = config[env];
+
 const sequelize = new Sequelize(
-  config[env].database,
-  config[env].username,
-  config[env].password,
-  config[env]
+  currentConfig.database,
+  currentConfig.username,
+  currentConfig.password,
+  currentConfig
 );
 
-// Connect to DB
 const connectDB = async () => {
   try {
-    console.log(`🔄 Connecting to ${env.toUpperCase()} Supabase PostgreSQL...`);
+    console.log(`🔄 Connecting to ${env.toUpperCase()} database...`);
     await sequelize.authenticate();
-    console.log(`✅ Connected successfully to ${env.toUpperCase()} Supabase PostgreSQL`);
+    console.log(`✅ Database connected successfully to ${env.toUpperCase()}`);
+    return true;
   } catch (error) {
-    console.error(`❌ Database connection failed (${env}):`, error.message);
-    console.log("🔧 Database Config:", {
-      host: config[env].host,
-      port: config[env].port,
-      database: config[env].database,
-      username: config[env].username,
-      environment: env,
+    console.error(`❌ Database connection failed:`, error.message);
+    console.log("🔧 Connection details:", {
+      host: currentConfig.host,
+      port: currentConfig.port,
+      database: currentConfig.database,
+      username: currentConfig.username,
+      environment: env
     });
-    console.log("💡 Tips:");
-    console.log("  • Check your Supabase credentials and password");
-    console.log("  • Ensure SSL is enabled (Render requires it)");
-    console.log("  • Verify Supabase isn't paused (free tiers sleep after inactivity)");
     throw error;
   }
 };
