@@ -33,7 +33,7 @@ const app = express();
 
 // CORS Middleware - Allow requests from localhost:5173
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: "https://resultmanagement.vercel.app/",
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "Accept"]
