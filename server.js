@@ -1,4 +1,5 @@
-// server.js
+// server.js - Fixed Version
+
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
@@ -43,27 +44,17 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, postman, server-to-server calls)
     if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
     
-    // Check exact match in allowed origins
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
-    // Check for Vercel preview deployments pattern
     const vercelPattern = /https:\/\/resultmanagement(-git-[a-zA-Z0-9-]+)?(-[a-zA-Z0-9-]+)?\.vercel\.app/;
-    if (vercelPattern.test(origin)) {
-      return callback(null, true);
-    }
+    if (vercelPattern.test(origin)) return callback(null, true);
     
-    // Check for local development variations
     if (origin.startsWith("http://localhost:") || origin.startsWith("https://localhost:")) {
       return callback(null, true);
     }
     
     console.log(`❌ CORS blocked: ${origin}`);
-    console.log(`📋 Allowed origins:`, allowedOrigins);
     return callback(new Error(`CORS policy: Origin ${origin} not allowed`), false);
   },
   credentials: true,
@@ -87,13 +78,15 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
-// Handle preflight requests
-app.options('*', cors());
+// ✅ FIXED: Handle preflight requests properly
+app.options('/*', (req, res) => {
+  res.sendStatus(204);
+});
 
 // Security & performance
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: false // Disable if causing issues with external resources
+  contentSecurityPolicy: false
 }));
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
@@ -103,7 +96,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(requestLogger);
 
-// Enhanced test route with CORS headers
+// Enhanced test route
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -159,8 +152,8 @@ app.use("/api/results", resultRoutes);
 app.use("/api/sms", smsRoutes);
 app.use("/api/assignments", assignmentRoutes);
 
-// Enhanced 404 handler
-app.use((req, res) => {
+// ✅ FIXED: Enhanced 404 handler with proper wildcard
+app.use('/*', (req, res) => {
   res.status(404).json({
     success: false,
     message: "Route not found",
@@ -198,7 +191,6 @@ const startServer = async () => {
       console.log(`🔧 Environment: ${env}`);
     });
 
-    // Enhanced server error handling
     server.on('error', (error) => {
       if (error.code === 'EADDRINUSE') {
         console.error(`❌ Port ${PORT} is already in use`);
