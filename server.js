@@ -1,5 +1,3 @@
-// server.js - Fixed Version
-
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
@@ -13,7 +11,7 @@ dotenv.config();
 // Import database connection and models
 const { connectDB, sequelize } = require("./config/db");
 
-// Import routes
+// Routes
 const teacherRoutes = require('./routes/teacherRoutes');
 const userRoutes = require("./routes/userRoutes");
 const classRoutes = require("./routes/classRoutes");
@@ -25,7 +23,7 @@ const commentRoutes = require("./routes/commentRoutes");
 const termRoutes = require("./routes/termRoutes");
 const resultRoutes = require("./routes/resultRoutes");
 const smsRoutes = require("./routes/smsRoutes");
-const assignmentRoutes = require("./routes/assignmentRoutes");
+const assignmentRoutes = require("./routes/assignmentRoutes"); // ✅ Added Assignment routes
 
 // Middleware
 const errorHandler = require("./middleware/errorMiddleware");
@@ -33,7 +31,7 @@ const requestLogger = require("./middleware/requestLogger");
 
 const app = express();
 
-// ✅ Enhanced CORS Configuration
+// ✅ ENHANCED CORS Configuration for Production
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
@@ -44,12 +42,21 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, postman, server-to-server calls)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
     
+    // Check exact match in allowed origins
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check for Vercel preview deployments pattern
     const vercelPattern = /https:\/\/resultmanagement(-git-[a-zA-Z0-9-]+)?(-[a-zA-Z0-9-]+)?\.vercel\.app/;
-    if (vercelPattern.test(origin)) return callback(null, true);
+    if (vercelPattern.test(origin)) {
+      return callback(null, true);
+    }
     
+    // Check for local development variations
     if (origin.startsWith("http://localhost:") || origin.startsWith("https://localhost:")) {
       return callback(null, true);
     }
@@ -58,7 +65,7 @@ app.use(cors({
     return callback(new Error(`CORS policy: Origin ${origin} not allowed`), false);
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
   allowedHeaders: [
     "Content-Type", 
     "Authorization", 
@@ -83,62 +90,79 @@ app.options('/*', (req, res) => {
   res.sendStatus(204);
 });
 
-// Security & performance
+// Security & performance middleware
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: false
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(compression());
+
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-// Body parser
+// Body Parsing Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(requestLogger);
 
-// Enhanced test route
+// Test route
 app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: "✅ Backend is running successfully",
-    environment: process.env.NODE_ENV || "development",
+    message: "✅ School Management System Backend is Running",
+    version: "1.0.0",
     timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
+    database: "Supabase PostgreSQL with Sequelize ORM",
     cors: {
       allowedOrigins: allowedOrigins,
-      currentOrigin: req.headers.origin || 'none'
-    }
+      currentOrigin: req.headers.origin || 'none',
+      status: "enabled"
+    },
+    features: [
+      "Teacher Management",
+      "Student Management", 
+      "Subject Management",
+      "Class & Stream Management",
+      "Score Tracking",
+      "Result Generation",
+      "Assignment Management", // ✅ Added Assignment feature
+      "Term Management",
+      "SMS Integration",
+      "Comment System"
+    ]
   });
 });
 
-// Enhanced health check
+// Health check route
 app.get("/health", async (req, res) => {
   const healthCheck = {
     success: true,
     status: "healthy",
-    environment: process.env.NODE_ENV || "development",
     timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
     uptime: process.uptime(),
     memory: process.memoryUsage(),
+    database: "connected",
     cors: {
-      origin: req.headers.origin || 'none',
-      allowed: true
+      allowedOrigins: allowedOrigins,
+      currentOrigin: req.headers.origin || 'none',
+      status: "enabled"
     }
   };
 
   try {
     await sequelize.authenticate();
-    healthCheck.database = "connected";
     res.json(healthCheck);
   } catch (error) {
     healthCheck.success = false;
     healthCheck.status = "unhealthy";
     healthCheck.database = "disconnected";
     healthCheck.error = error.message;
+    
     res.status(503).json(healthCheck);
   }
 });
 
-// API routes
+// API Routes
 app.use("/api/teachers", teacherRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/classes", classRoutes);
@@ -150,9 +174,9 @@ app.use("/api/comments", commentRoutes);
 app.use("/api/terms", termRoutes);
 app.use("/api/results", resultRoutes);
 app.use("/api/sms", smsRoutes);
-app.use("/api/assignments", assignmentRoutes);
+app.use("/api/assignments", assignmentRoutes); // ✅ Added Assignment routes
 
-// ✅ FIXED: Enhanced 404 handler with proper wildcard
+// ✅ FIXED: 404 handler with proper wildcard syntax
 app.use('/*', (req, res) => {
   res.status(404).json({
     success: false,
@@ -163,9 +187,17 @@ app.use('/*', (req, res) => {
     availableRoutes: [
       "/api/teachers",
       "/api/users",
+      "/api/classes",
+      "/api/streams",
       "/api/students",
       "/api/subjects",
-      "/api/health"
+      "/api/scores",
+      "/api/comments",
+      "/api/terms",
+      "/api/results",
+      "/api/sms",
+      "/api/assignments",
+      "/health"
     ]
   });
 });
@@ -173,60 +205,102 @@ app.use('/*', (req, res) => {
 // Error handler
 app.use(errorHandler);
 
-// Start server
 const startServer = async () => {
   try {
     const env = process.env.NODE_ENV || "development";
-    console.log(`🚀 Starting server in ${env} mode...`);
-    console.log(`🌍 CORS Allowed Origins:`, allowedOrigins);
+    console.log(`🚀 Starting School Management System Server...`);
+    console.log(`🌍 Environment: ${env}`);
+    console.log(`🌐 CORS Allowed Origins:`, allowedOrigins);
     
+    // Step 1: Connect to database
+    console.log(`🔄 Connecting to ${env} database...`);
     await connectDB();
-    console.log("✅ Database connected successfully");
-
+    
+    // Step 3: Start the server
     const PORT = process.env.PORT || 5000;
     const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🌐 Server running on port ${PORT}`);
-      console.log(`📍 Health check: http://0.0.0.0:${PORT}/health`);
-      console.log(`📍 API Base: http://0.0.0.0:${PORT}/api`);
-      console.log(`🔧 Environment: ${env}`);
+      console.log(`✅ Server successfully started!`);
+      console.log(`📍 Port: ${PORT}`);
+      console.log(`🔗 API Base URL: http://0.0.0.0:${PORT}/api`);
+      console.log(`❤️  Health check: http://0.0.0.0:${PORT}/health`);
+      console.log(`🗄️  Database: Supabase PostgreSQL (${env})`);
+      console.log(`⏰ Started at: ${new Date().toISOString()}`);
+      console.log(`📊 Available models: User, Teacher, Student, Subject, Class, Stream, Score, Term, Assignment`);
+      console.log(`🌐 CORS: Enabled for multiple origins including Vercel`);
+      console.log(`🔐 Security: Enhanced CORS configuration`);
+      console.log(`\n📋 Available API Endpoints:`);
+      console.log(`   👨‍🏫  Teachers:    /api/teachers`);
+      console.log(`   👥  Users:       /api/users`);
+      console.log(`   🏫  Classes:     /api/classes`);
+      console.log(`   📚  Streams:     /api/streams`);
+      console.log(`   🎓  Students:    /api/students`);
+      console.log(`   📖  Subjects:    /api/subjects`);
+      console.log(`   📊  Scores:      /api/scores`);
+      console.log(`   💬  Comments:    /api/comments`);
+      console.log(`   📅  Terms:       /api/terms`);
+      console.log(`   📈  Results:     /api/results`);
+      console.log(`   📱  SMS:         /api/sms`);
+      console.log(`   🔗  Assignments: /api/assignments`); // ✅ Added Assignment endpoint
     });
 
-    server.on('error', (error) => {
-      if (error.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${PORT} is already in use`);
-      } else {
-        console.error('❌ Server error:', error);
-      }
-      process.exit(1);
-    });
-
+    return server;
   } catch (error) {
-    console.error("💥 Failed to start server:", error.message);
+    console.error("💥 CRITICAL: Failed to start server");
+    console.error("Error:", error.message);
+    
+    if (error.name === 'SequelizeConnectionError') {
+      console.error("🔌 Database Connection Issue:");
+      console.error("   - Check your database credentials");
+      console.error("   - Verify Supabase connection settings");
+      console.error("   - Ensure database server is running");
+    }
+    
+    console.error("Full error details:", error);
     process.exit(1);
   }
 };
 
-startServer();
-
-// Graceful shutdown
-const shutdown = async (signal) => {
-  console.log(`\n${signal} received. Shutting down gracefully...`);
+const gracefulShutdown = async (signal) => {
+  console.log(`\n${signal} signal received: starting graceful shutdown...`);
+  
   try {
+    console.log('📦 Closing database connections...');
     await sequelize.close();
-    console.log("✅ Database connections closed");
+    console.log('✅ Database connections closed');
+    
+    console.log('👋 Server shutdown completed');
     process.exit(0);
-  } catch (err) {
-    console.error("❌ Error during shutdown:", err.message);
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error.message);
     process.exit(1);
   }
 };
 
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("💥 UNHANDLED REJECTION at:", promise, "reason:", reason);
-});
-process.on("uncaughtException", (error) => {
-  console.error("💥 UNCAUGHT EXCEPTION:", error);
+// Handle graceful shutdown
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('💥 UNCAUGHT EXCEPTION! Shutting down...');
+  console.error('Error:', error);
   process.exit(1);
 });
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 UNHANDLED REJECTION! Shutting down...');
+  console.error('Promise:', promise);
+  console.error('Reason:', reason);
+  process.exit(1);
+});
+
+// Handle process warnings
+process.on('warning', (warning) => {
+  console.warn('⚠️  Process Warning:', warning.name);
+  console.warn('Message:', warning.message);
+  console.warn('Stack:', warning.stack);
+});
+
+// Start the server
+startServer();
