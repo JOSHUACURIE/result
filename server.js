@@ -32,28 +32,69 @@ const requestLogger = require("./middleware/requestLogger");
 
 const app = express();
 
-// ✅ Allowed origins for CORS
+// ✅ Enhanced CORS Configuration
 const allowedOrigins = [
-  "http://localhost:5173",                  // Dev frontend
-  "https://resultmanagement.vercel.app"    // Production frontend
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://resultmanagement.vercel.app",
+  "https://resultmanagement-*.vercel.app",
+  "https://resultmanagement-git-*.vercel.app"
 ];
 
 app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin) return callback(null, true); // allow server-to-server or curl
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = `❌ CORS error: ${origin} not allowed`;
-      return callback(new Error(msg), false);
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, postman, server-to-server calls)
+    if (!origin) return callback(null, true);
+    
+    // Check exact match in allowed origins
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
     }
-    return callback(null, true);
+    
+    // Check for Vercel preview deployments pattern
+    const vercelPattern = /https:\/\/resultmanagement(-git-[a-zA-Z0-9-]+)?(-[a-zA-Z0-9-]+)?\.vercel\.app/;
+    if (vercelPattern.test(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check for local development variations
+    if (origin.startsWith("http://localhost:") || origin.startsWith("https://localhost:")) {
+      return callback(null, true);
+    }
+    
+    console.log(`❌ CORS blocked: ${origin}`);
+    console.log(`📋 Allowed origins:`, allowedOrigins);
+    return callback(new Error(`CORS policy: Origin ${origin} not allowed`), false);
   },
   credentials: true,
-  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Accept"]
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+  allowedHeaders: [
+    "Content-Type", 
+    "Authorization", 
+    "Accept", 
+    "X-Requested-With",
+    "X-API-Key",
+    "Origin",
+    "Access-Control-Request-Method",
+    "Access-Control-Request-Headers"
+  ],
+  exposedHeaders: [
+    "Content-Range",
+    "X-Content-Range",
+    "Content-Disposition"
+  ],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
+// Handle preflight requests
+app.options('*', cors());
+
 // Security & performance
-app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false // Disable if causing issues with external resources
+}));
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
@@ -62,24 +103,33 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(requestLogger);
 
-// Test route
+// Enhanced test route with CORS headers
 app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: "✅ Backend is running",
+    message: "✅ Backend is running successfully",
     environment: process.env.NODE_ENV || "development",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    cors: {
+      allowedOrigins: allowedOrigins,
+      currentOrigin: req.headers.origin || 'none'
+    }
   });
 });
 
-// Health check
+// Enhanced health check
 app.get("/health", async (req, res) => {
   const healthCheck = {
     success: true,
     status: "healthy",
     environment: process.env.NODE_ENV || "development",
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    cors: {
+      origin: req.headers.origin || 'none',
+      allowed: true
+    }
   };
 
   try {
@@ -109,7 +159,7 @@ app.use("/api/results", resultRoutes);
 app.use("/api/sms", smsRoutes);
 app.use("/api/assignments", assignmentRoutes);
 
-// 404 handler
+// Enhanced 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -117,6 +167,13 @@ app.use((req, res) => {
     path: req.originalUrl,
     method: req.method,
     timestamp: new Date().toISOString(),
+    availableRoutes: [
+      "/api/teachers",
+      "/api/users",
+      "/api/students",
+      "/api/subjects",
+      "/api/health"
+    ]
   });
 });
 
@@ -128,15 +185,29 @@ const startServer = async () => {
   try {
     const env = process.env.NODE_ENV || "development";
     console.log(`🚀 Starting server in ${env} mode...`);
+    console.log(`🌍 CORS Allowed Origins:`, allowedOrigins);
     
-    await connectDB(); // Connect to Supabase/Postgres
-    console.log("✅ Database connected");
+    await connectDB();
+    console.log("✅ Database connected successfully");
 
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🌐 Server running on port ${PORT}`);
-      console.log(`📍 Health check: /health`);
+      console.log(`📍 Health check: http://0.0.0.0:${PORT}/health`);
+      console.log(`📍 API Base: http://0.0.0.0:${PORT}/api`);
+      console.log(`🔧 Environment: ${env}`);
     });
+
+    // Enhanced server error handling
+    server.on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use`);
+      } else {
+        console.error('❌ Server error:', error);
+      }
+      process.exit(1);
+    });
+
   } catch (error) {
     console.error("💥 Failed to start server:", error.message);
     process.exit(1);
@@ -147,7 +218,7 @@ startServer();
 
 // Graceful shutdown
 const shutdown = async (signal) => {
-  console.log(`\n${signal} received. Shutting down...`);
+  console.log(`\n${signal} received. Shutting down gracefully...`);
   try {
     await sequelize.close();
     console.log("✅ Database connections closed");
@@ -160,9 +231,10 @@ const shutdown = async (signal) => {
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("unhandledRejection", (reason) => {
-  console.error("💥 UNHANDLED REJECTION:", reason);
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("💥 UNHANDLED REJECTION at:", promise, "reason:", reason);
 });
 process.on("uncaughtException", (error) => {
   console.error("💥 UNCAUGHT EXCEPTION:", error);
+  process.exit(1);
 });
